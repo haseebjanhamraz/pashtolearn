@@ -1,0 +1,15 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package.json and package-lock.json
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy the rest of your application code
+COPY . .
+
+# The command to start the app will be handled by docker-compose
+CMD ["npm", "run", "dev"]

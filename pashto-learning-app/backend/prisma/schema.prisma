@@ -1,23 +1,34 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model User {
-  id         Int       @id @default(autoincrement())
-  fullName   String
-  email      String    @unique
-  password   String
-  role       String    @default("student")
+  id                   Int       @id @default(autoincrement())
+  fullName             String
+  email                String    @unique
+  password             String
+  role                 String    @default("student")
+  refresh_token        String?
+  resetToken           String?
+  resetTokenExpiry     String?
+  emailVerified        Boolean @default(false)
+  verificationToken    String?
+
+
+
   createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now())
 
   profile       Profile?
   progress      UserProgress[]
   exercisesDone UserExercise[]
+  
 }
 
 model Profile {

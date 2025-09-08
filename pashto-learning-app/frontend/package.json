@@ -59,7 +59,7 @@
   "scripts": {
     "start": "vite",
     "build": "vite build --sourcemap",
-    "dev": "vite",
+    "dev": "vite --host",
     "serve": "vite preview"
   },
   "eslintConfig": {

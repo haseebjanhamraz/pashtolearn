@@ -1,7 +1,7 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import pool from "../utils/db.js";
+import prisma from "../utils/prisma.js";
 
 const router = express.Router();
 
@@ -14,21 +14,23 @@ const generateRefreshToken = (user) =>
 
 // Register
 router.post("/register", async (req, res) => {
-  const { full_name, email, password, role } = req.body;
+  const { fullName, email, password, role } = req.body;
   try {
-    const exists = await pool.query("SELECT id FROM users WHERE email=$1", [
-      email,
-    ]);
-    if (exists.rows.length)
-      return res.status(400).json({ error: "User already exists" });
+    const exists = await prisma.user.findUnique({ where: { email } });
+    if (exists) return res.status(400).json({ error: "User already exists" });
 
     const hashed = await bcrypt.hash(password, 12);
-    const result = await pool.query(
-      "INSERT INTO users (full_name, email, password, role) VALUES ($1,$2,$3,$4) RETURNING id, full_name, email, role",
-      [full_name, email, hashed, role || "student"]
-    );
+    const user = await prisma.user.create({
+      data: {
+        fullName,
+        email,
+        password: hashed,
+        role: role || "student",
+      },
+      select: { id: true, fullName: true, email: true, role: true },
+    });
 
-    res.status(201).json({ message: "User created", user: result.rows[0] });
+    res.status(201).json({ message: "User created", user });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -39,13 +41,9 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
   try {
-    const result = await pool.query("SELECT * FROM users WHERE email=$1", [
-      email,
-    ]);
-    if (!result.rows.length)
-      return res.status(400).json({ error: "Invalid credentials" });
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(400).json({ error: "Invalid credentials" });
 
-    const user = result.rows[0];
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(400).json({ error: "Invalid credentials" });
 
@@ -53,10 +51,10 @@ router.post("/login", async (req, res) => {
     const accessToken = generateAccessToken(userPayload);
     const refreshToken = generateRefreshToken(userPayload);
 
-    await pool.query("UPDATE users SET refresh_token=$1 WHERE id=$2", [
-      refreshToken,
-      user.id,
-    ]);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { refresh_token: refreshToken },
+    });
 
     res.json({ accessToken, refreshToken });
   } catch (err) {
@@ -65,7 +63,7 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Refresh token
+// Refresh
 router.post("/refresh", async (req, res) => {
   const { token } = req.body;
   if (!token)
@@ -73,18 +71,13 @@ router.post("/refresh", async (req, res) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
-    const result = await pool.query("SELECT * FROM users WHERE id=$1", [
-      decoded.id,
-    ]);
-    if (!result.rows.length || result.rows[0].refresh_token !== token) {
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+
+    if (!user || user.refresh_token !== token) {
       return res.status(403).json({ error: "Invalid refresh token" });
     }
 
-    const userPayload = {
-      id: result.rows[0].id,
-      email: result.rows[0].email,
-      role: result.rows[0].role,
-    };
+    const userPayload = { id: user.id, email: user.email, role: user.role };
     const newAccessToken = generateAccessToken(userPayload);
 
     res.json({ accessToken: newAccessToken });
@@ -97,10 +90,10 @@ router.post("/refresh", async (req, res) => {
 router.post("/logout", async (req, res) => {
   const { token } = req.body;
   try {
-    await pool.query(
-      "UPDATE users SET refresh_token=NULL WHERE refresh_token=$1",
-      [token]
-    );
+    await prisma.user.updateMany({
+      where: { refresh_token: token },
+      data: { refresh_token: null },
+    });
     res.json({ message: "Logged out successfully" });
   } catch (err) {
     res.status(500).json({ error: "Server error" });

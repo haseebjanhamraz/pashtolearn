@@ -1,0 +1,22 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package.json and package-lock.json (or yarn.lock)
+COPY package*.json ./
+
+
+# Install dependencies
+RUN npm install
+
+# Copy prisma schema
+COPY prisma ./prisma/
+
+# Generate Prisma Client for the correct binary targets
+RUN npx prisma generate
+
+# Copy the rest of your application code
+COPY . .
+
+# The command to start the app will be handled by docker-compose
+CMD ["node", "index.js"]

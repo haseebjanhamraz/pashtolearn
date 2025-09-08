@@ -1,18 +1,20 @@
-# Use Node.js
-FROM node:20-alpine
+# Stage 1: Build Vite app
+FROM node:20-alpine AS builder
 
-# Set working directory
-WORKDIR /app
-
-# Install dependencies
+WORKDIR /
 COPY package*.json ./
 RUN npm install
-
-# Copy all source files
 COPY . .
+RUN npm run build
 
-# Expose Vite default port
-EXPOSE 5173
+# Stage 2: Serve with Nginx
+FROM nginx:stable-alpine
 
-# Run Vite dev server
-CMD ["npm", "run", "dev"]
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Custom nginx config (optional, if you need SPA fallback)
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

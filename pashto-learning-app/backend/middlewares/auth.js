@@ -22,3 +22,10 @@ export const authorize =
     }
     next();
   };
+
+export const authorizeEmailVerified = (req, res, next) => {
+  if (req.user.emailVerified !== true) {
+    return res.status(403).json({ error: "Email not verified" });
+  }
+  next();
+};
